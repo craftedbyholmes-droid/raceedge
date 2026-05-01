@@ -35,7 +35,7 @@ export async function GET(req) {
   for (const day of ['today', 'tomorrow']) {
     try {
       const data = await fetchRacecards(day);
-      for (const race of (data.races || [])) {
+      for (const race of (data.racecards || [])) {
         await supabase.from('races').upsert({
           race_id: race.race_id, course: race.course, race_name: race.race_name,
           race_type: race.type, going: race.going,
