@@ -1,0 +1,15 @@
+{
+  "crons": [
+    { "path": "/api/cron/morning",    "schedule": "0 7 * * *"  },
+    { "path": "/api/results/fetch",   "schedule": "0 15 * * *" },
+    { "path": "/api/results/fetch",   "schedule": "0 16 * * *" },
+    { "path": "/api/results/fetch",   "schedule": "0 17 * * *" },
+    { "path": "/api/results/fetch",   "schedule": "0 18 * * *" },
+    { "path": "/api/results/fetch",   "schedule": "0 19 * * *" },
+    { "path": "/api/results/fetch",   "schedule": "0 20 * * *" },
+    { "path": "/api/results/fetch",   "schedule": "0 21 * * *" },
+    { "path": "/api/results/fetch",   "schedule": "0 22 * * *" },
+    { "path": "/api/personas/settle", "schedule": "30 22 * * *"},
+    { "path": "/api/cron/midnight",   "schedule": "0 0 * * *"  }
+  ]
+}
