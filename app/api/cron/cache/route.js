@@ -5,18 +5,23 @@ import { bestOdds } from '@/lib/odds';
 export async function GET() {
   const today    = new Date().toISOString().split('T')[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  const nowUTC   = new Date();
+  const nowBST   = new Date(nowUTC.getTime() + 60 * 60 * 1000); // UTC+1 BST
+  const nowTime  = nowBST.getHours() + ':' + String(nowBST.getMinutes()).padStart(2, '0');
 
   for (const [key, date] of [['races_today', today], ['races_tomorrow', tomorrow]]) {
     const { data: races } = await supabase
       .from('races').select('*').eq('race_date', date).order('off_time');
     const built = [];
     for (const race of (races || [])) {
-      const { data: raceRunners } = await supabase
+      // Hide races that have already finished (off_time < now on today)
+      if (date === today && race.off_time && race.off_time < nowTime) continue;
+
+      const { data: rr } = await supabase
         .from('runners').select('*, scores(total)')
         .eq('race_id', race.race_id).limit(30);
-      const sorted = (raceRunners || [])
+      const sorted = (rr || [])
         .map(r => {
-          // odds_raw is the full runner object - odds array is at odds_raw.odds
           const o = bestOdds(r.odds_raw?.odds || []);
           return Object.assign({}, r, {
             total:           r.scores?.total || 0,
