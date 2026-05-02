@@ -375,3 +375,4 @@ label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px
   color: var(--muted);
   letter-spacing: 0.5px;
 }
+.btn-gold { background: var(--gold); color: #000; }
