@@ -3,8 +3,6 @@ import supabase from '@/lib/supabase';
 import { bestOdds } from '@/lib/odds';
 
 export async function GET(req) {
-  const secret = req.headers.get('authorization')?.replace('Bearer ', '');
-  if (secret !== process.env.CRON_SECRET) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const today    = new Date().toISOString().split('T')[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   for (const [key, date] of [['races_today', today], ['races_tomorrow', tomorrow]]) {

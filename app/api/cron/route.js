@@ -3,8 +3,6 @@ import supabase from '@/lib/supabase';
 import { fetchRacecards } from '@/lib/racingApi';
 
 export async function GET(req) {
-  const secret = req.headers.get('authorization')?.replace('Bearer ', '');
-  if (secret !== process.env.CRON_SECRET) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   let racesInserted = 0, runnersInserted = 0;
   const errors = [];
   for (const day of ['today', 'tomorrow']) {
