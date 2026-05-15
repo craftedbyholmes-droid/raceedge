@@ -1,24 +1,41 @@
 import { NextResponse } from 'next/server';
-import supabase from '@/lib/supabase';
 
-export async function GET(req) {
-  const secret = req.headers.get('authorization')?.replace('Bearer ', '');
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+// Midnight: fetch -> score -> cache -> picks in order
+// Mistake #7: order must never be swapped
 
-  // Copy tomorrow cache to today at midnight
-  const { data: tmrw } = await supabase.from('cache').select('value').eq('key', 'races_tomorrow').single();
-  if (tmrw?.value) {
-    const today = new Date().toISOString().split('T')[0];
-    await supabase.from('cache').upsert({
-      key: 'races_today', value: tmrw.value, date: today,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'key' });
-  }
+function checkSecret(request) {
+  const auth = request.headers.get('authorization') || '';
+  return auth === 'Bearer ' + process.env.CRON_SECRET;
+}
 
-  // Clear stale free tip from yesterday
-  await supabase.from('cache').delete().eq('key', 'free_tip_today');
+async function callStep(path) {
+  const base = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  const res = await fetch(base + path, {
+    headers: { Authorization: 'Bearer ' + process.env.CRON_SECRET },
+    cache: 'no-store',
+  });
+  const data = await res.json().catch(function() { return {}; });
+  return { path: path, status: res.status, ok: res.ok, data: data };
+}
 
-  return NextResponse.json({ ok: true, action: 'midnight: tomorrow copied to today, free tip cleared' });
+export async function GET(request) {
+  if (!checkSecret(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const steps = [];
+  const fetch = await callStep('/api/cron');
+  steps.push(fetch);
+  if (!fetch.ok) return NextResponse.json({ success: false, steps: steps, error: 'Fetch step failed' });
+
+  const score = await callStep('/api/cron/score');
+  steps.push(score);
+  if (!score.ok) return NextResponse.json({ success: false, steps: steps, error: 'Score step failed' });
+
+  const cache = await callStep('/api/cron/cache');
+  steps.push(cache);
+  if (!cache.ok) return NextResponse.json({ success: false, steps: steps, error: 'Cache step failed' });
+
+  const personas = await callStep('/api/personas');
+  steps.push(personas);
+
+  return NextResponse.json({ success: steps.every(function(s) { return s.ok; }), steps: steps, timestamp: new Date().toISOString() });
 }

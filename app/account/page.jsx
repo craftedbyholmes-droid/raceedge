@@ -1,50 +1,70 @@
-﻿'use client';
-import { useState, useEffect } from 'react';
-import { getSupabaseClient } from '@/lib/supabaseClient';
-import { usePlan } from '@/lib/usePlan';
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { createAuthClient } from '../../lib/supabaseAuth.js';
 
 export default function AccountPage() {
-  const sb = getSupabaseClient();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
   const [user, setUser] = useState(null);
-  const { plan } = usePlan();
+  const [plan, setPlan] = useState('free');
+  const supabase = createAuthClient();
 
-  useEffect(() => {
-    sb.auth.getUser().then(({ data }) => setUser(data?.user || null));
+  useEffect(function() {
+    supabase.auth.getSession().then(function(res) {
+      var session = res.data.session;
+      if (session) {
+        setUser(session.user);
+        fetch('/api/user/plan', { headers: { Authorization: 'Bearer ' + session.access_token } })
+          .then(function(r) { return r.json(); })
+          .then(function(d) { setPlan(d.plan || 'free'); });
+      }
+    });
   }, []);
 
-  const signOut = async () => {
-    await sb.auth.signOut();
-    window.location.href = '/';
-  };
+  var inputStyle = { width: '100%', padding: '10px 12px', background: '#0f0f1a', border: '1px solid #2a2a3e', borderRadius: '6px', color: '#e0e0e0', fontSize: '16px', marginBottom: '12px', display: 'block' };
+  var btnStyle = { width: '100%', padding: '12px', background: '#a3e635', color: '#0a0a14', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', marginBottom: '8px' };
+  var planColors = { free: '#888', pro: '#4d9fff', edge: '#a3e635' };
 
-  if (!user) return (
-    <div style={{ paddingTop: 32, textAlign: 'center', color: 'var(--muted)' }}>
-      <a href="/" style={{ color: 'var(--blue)' }}>Sign in</a> to view your account.
-    </div>
-  );
+  async function handleSignIn() {
+    setLoading(true); setMessage('');
+    var res = await supabase.auth.signInWithPassword({ email: email, password: password });
+    if (res.error) setMessage(res.error.message);
+    else { setUser(res.data.user); setMessage('Signed in.'); }
+    setLoading(false);
+  }
 
-  const planColour = { free: 'var(--muted)', pro: 'var(--blue)', edge: 'var(--green)' };
-  const planLabel  = { free: 'Free', pro: 'Pro - £9.99/month', edge: 'Edge - £24.99/month' };
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setUser(null); setPlan('free'); setMessage('Signed out.');
+  }
 
-  return (
-    <div style={{ paddingTop: 16 }}>
-      <h1 className="section-title">Account</h1>
-      <div className="card">
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Email</div>
-          <div>{user.email}</div>
-        </div>
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Plan</div>
-          <div style={{ fontFamily: 'Bebas Neue, sans-serif', fontSize: 20, color: planColour[plan] || 'var(--text)' }}>
-            {planLabel[plan] || plan}
-          </div>
-        </div>
-        {plan === 'free' && (
-          <a href="/pricing" className="btn btn-blue btn-full" style={{ marginBottom: 12 }}>Upgrade Plan</a>
-        )}
-        <button onClick={signOut} className="btn btn-ghost btn-full">Sign Out</button>
-      </div>
-    </div>
+  if (user) {
+    return React.createElement('div', { className: 'page' },
+      React.createElement('h1', { style: { marginBottom: '24px', fontSize: '28px' } }, 'Account'),
+      React.createElement('div', { className: 'card' },
+        React.createElement('p', { style: { color: '#888', marginBottom: '8px' } }, user.email),
+        React.createElement('p', null, 'Plan: ', React.createElement('span', { style: { color: planColors[plan] || '#888', fontWeight: '700', textTransform: 'uppercase' } }, plan)),
+        React.createElement('button', { onClick: handleSignOut, style: Object.assign({}, btnStyle, { marginTop: '16px', background: 'none', border: '1px solid #444', color: '#ccc' }) }, 'Sign Out')
+      ),
+      message && React.createElement('p', { style: { marginTop: '12px', color: '#888' } }, message)
+    );
+  }
+
+  return React.createElement('div', { className: 'page' },
+    React.createElement('div', { style: { maxWidth: '400px', margin: '0 auto' } },
+      React.createElement('h1', { style: { marginBottom: '24px', fontSize: '28px' } }, 'Sign In'),
+      React.createElement('div', { className: 'card' },
+        React.createElement('input', { type: 'email', placeholder: 'Email', value: email, onChange: function(e) { setEmail(e.target.value); }, style: inputStyle }),
+        React.createElement('input', { type: 'password', placeholder: 'Password', value: password, onChange: function(e) { setPassword(e.target.value); }, style: inputStyle }),
+        React.createElement('button', { onClick: handleSignIn, disabled: loading, style: btnStyle }, loading ? 'Signing in...' : 'Sign In'),
+        message && React.createElement('p', { style: { color: '#ff6b6b', fontSize: '14px', marginTop: '8px' } }, message),
+        React.createElement('p', { style: { color: '#666', fontSize: '13px', marginTop: '12px', textAlign: 'center' } },
+          'No account? ', React.createElement('a', { href: '/join', style: { color: '#a3e635' } }, 'Join RaceEdge')
+        )
+      )
+    )
   );
 }

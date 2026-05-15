@@ -1,205 +1,134 @@
-"use client";
-import { useState, useEffect, useCallback } from "react";
-import { useOdds, OddsToggleButton } from "@/components/OddsToggle";
-import { usePlan } from "@/lib/usePlan";
-import { fracToDecimal } from "@/lib/odds";
-
-function ScoreBadge({ score }) {
-  const s = Math.round(score || 0);
-  const colour = s >= 75 ? "var(--gold)" : s >= 68 ? "var(--green)" : "var(--muted)";
-  return (
-    <div style={{ textAlign: "center", minWidth: 48 }}>
-      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 2 }}>Score</div>
-      <div style={{ fontFamily: "Bebas Neue, sans-serif", fontSize: 26, lineHeight: 1, color: colour }}>{s}</div>
-    </div>
-  );
-}
-
-function OddsDisplay({ fractional, decimal, bookmaker, mode }) {
-  const val = mode === "decimal"
-    ? (fracToDecimal(fractional) ? fracToDecimal(fractional).toFixed(2) : null)
-    : fractional;
-  return (
-    <div style={{ textAlign: "center", minWidth: 52 }}>
-      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", marginBottom: 2 }}>Odds</div>
-      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontWeight: 700, fontSize: 18, color: val ? "var(--gold)" : "var(--muted)" }}>
-        {val || "N/A"}
-      </div>
-    </div>
-  );
-}
-
-function RunnerCard({ runner, mode, affUrl }) {
-  return (
-    <div style={{ background: "var(--surface2)", borderRadius: "var(--radius)", padding: "12px 14px", marginBottom: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 160 }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontWeight: 700, fontSize: 16 }}>
-            {runner.horse_name}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, lineHeight: 1.5 }}>
-            <span>Jockey: <strong style={{ color: "var(--text)" }}>{runner.jockey || "TBC"}</strong></span>
-            <span style={{ margin: "0 6px" }}>·</span>
-            <span>Trainer: <strong style={{ color: "var(--text)" }}>{runner.trainer || "TBC"}</strong></span>
-            {runner.draw ? <><span style={{ margin: "0 6px" }}>·</span><span>Draw: <strong style={{ color: "var(--text)" }}>{runner.draw}</strong></span></> : null}
-            {runner.form ? <><span style={{ margin: "0 6px" }}>·</span><span>Form: <strong style={{ color: "var(--text)" }}>{runner.form}</strong></span></> : null}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexShrink: 0 }}>
-          <ScoreBadge score={runner.total} />
-          <OddsDisplay
-            fractional={runner.best_fractional}
-            decimal={runner.best_decimal}
-            bookmaker={runner.best_bookmaker}
-            mode={mode}
-          />
-          <a href={affUrl} target="_blank" rel="noopener noreferrer sponsored"
-            className="btn btn-green" style={{ padding: "7px 14px", fontSize: 13 }}>
-            Bet365
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
+'use client';
+import React, { useState, useEffect } from 'react';
+import { usePlan } from '../../lib/usePlan.js';
+import { useOdds } from '../../components/OddsToggle.jsx';
+import { affiliateUrl } from '../../lib/odds.js';
 
 export default function DashboardPage() {
-  const [races, setRaces]       = useState([]);
-  const [freeTip, setFreeTip]   = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [expanded, setExpanded] = useState({});
-  const { mode } = useOdds();
   const { plan, loading: planLoading } = usePlan();
-  const affUrl = process.env.NEXT_PUBLIC_AFF_BET365 || "https://www.bet365.com";
+  const { showDecimal } = useOdds();
+  const [races, setRaces] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState({});
+  const [topPicksPage, setTopPicksPage] = useState(0);
+  const PICKS_PER_PAGE = 10;
 
-  const loadData = useCallback(() => {
-    if (planLoading) return;
-    if (plan === "free") {
-      fetch("/api/free-tip")
-        .then(r => r.json())
-        .then(d => { setFreeTip(d.tip || null); setLoading(false); });
-    } else {
-      fetch("/api/races?plan=" + plan)
-        .then(r => r.json())
-        .then(d => { setRaces(d.races || []); setLoading(false); });
-    }
-  }, [plan, planLoading]);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // Refresh every 10 minutes
-  useEffect(() => {
-    const iv = setInterval(loadData, 600000);
-    return () => clearInterval(iv);
-  }, [loadData]);
-
-  const toggle = id => setExpanded(e => Object.assign({}, e, { [id]: !e[id] }));
-  const highConf = races.flatMap(r => r.runners || []).filter(r => r.total >= 75).length;
-  const strong   = races.flatMap(r => r.runners || []).filter(r => r.total >= 68).length;
-
-  if (plan === "free") {
-    return (
-      <div style={{ paddingTop: 16 }}>
-        <h1 className="section-title">Today's Top Tip</h1>
-        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>
-          {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
-        </div>
-        {loading && <div style={{ textAlign: "center", color: "var(--muted)", padding: 40 }}>Loading...</div>}
-        {!loading && !freeTip && (
-          <div className="card" style={{ textAlign: "center", padding: 32 }}>
-            <div style={{ color: "var(--muted)", marginBottom: 8 }}>No tip generated yet today.</div>
-            <div style={{ fontSize: 12, color: "var(--muted)" }}>Tips are generated at 07:00 each morning.</div>
-          </div>
-        )}
-        {!loading && freeTip && (
-          <div className="card" style={{ borderTop: "3px solid var(--gold)" }}>
-            <div style={{ fontSize: 11, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Morning Best Pick</div>
-            <div style={{ fontFamily: "Bebas Neue, sans-serif", fontSize: 30, letterSpacing: 1 }}>{freeTip.horse_name}</div>
-            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 14 }}>{freeTip.course} · {freeTip.race_type}</div>
-            <div style={{ display: "flex", gap: 24, marginBottom: 14, flexWrap: "wrap" }}>
-              <div>
-                <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Odds</div>
-                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 26, fontWeight: 700, color: "var(--gold)" }}>{freeTip.odds || "N/A"}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase" }}>Score</div>
-                <div style={{ fontFamily: "Bebas Neue, sans-serif", fontSize: 26, color: "var(--green)" }}>{Math.round(freeTip.score || 0)}</div>
-              </div>
-            </div>
-            {freeTip.tip_text && (
-              <div style={{ fontSize: 13, fontStyle: "italic", color: "var(--muted)", borderTop: "1px solid var(--border)", paddingTop: 12, marginBottom: 14 }}>
-                "{freeTip.tip_text}"
-              </div>
-            )}
-            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>Suggested stake: £5 each way · Total £10</div>
-            <a href={affUrl} target="_blank" rel="noopener noreferrer sponsored" className="btn btn-green">Bet on Bet365</a>
-          </div>
-        )}
-        <div className="card" style={{ marginTop: 16, textAlign: "center", padding: 24 }}>
-          <div style={{ fontFamily: "Bebas Neue, sans-serif", fontSize: 18, marginBottom: 8 }}>See All Races</div>
-          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 14 }}>Pro members see all races, full runner details, odds and both tipster picks.</div>
-          <a href="/pricing" className="btn btn-blue">View Plans</a>
-        </div>
-      </div>
-    );
+  function loadRaces() {
+    setLoading(true);
+    fetch('/api/races')
+      .then(function(r) { return r.json(); })
+      .then(function(data) { setRaces(data.races || []); setLoading(false); })
+      .catch(function() { setLoading(false); });
   }
 
-  return (
-    <div style={{ paddingTop: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-        <div>
-          <h1 className="section-title" style={{ marginBottom: 2 }}>Today's Races</h1>
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>
-            {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <OddsToggleButton />
-          <span className="badge badge-grey">{plan.toUpperCase()}</span>
-        </div>
-      </div>
+  useEffect(function() { loadRaces(); }, []);
 
-      <div className="stats-row">
-        <div className="stat-box"><div className="stat-val">{races.length}</div><div className="stat-lbl">Races</div></div>
-        <div className="stat-box"><div className="stat-val" style={{ color: "var(--gold)" }}>{highConf}</div><div className="stat-lbl">High Conf</div></div>
-        <div className="stat-box"><div className="stat-val">{strong}</div><div className="stat-lbl">Strong</div></div>
-      </div>
+  function toggleRace(raceId) {
+    setExpanded(function(prev) { var next = Object.assign({}, prev); next[raceId] = !next[raceId]; return next; });
+  }
 
-      {loading && <div style={{ textAlign: "center", color: "var(--muted)", padding: 40 }}>Loading races...</div>}
-      {!loading && !races.length && (
-        <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>
-          No races loaded yet — racecards are fetched at 07:00 each morning.
-        </div>
-      )}
+  function getOdds(runner) {
+    if (!runner) return 'N/A';
+    return showDecimal ? (runner.best_dec ? runner.best_dec.toFixed(2) : 'N/A') : (runner.best_frac || 'N/A');
+  }
 
-      {races.map(race => (
-        <div key={race.race_id} className="card" style={{ cursor: "pointer" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-            onClick={() => toggle(race.race_id)}>
-            <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontFamily: "Bebas Neue, sans-serif", fontSize: 18, letterSpacing: 0.5 }}>{race.course}</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>{race.off_time}</span>
-                <span className="badge badge-grey">{race.race_type}</span>
-                {(race.runners || []).some(r => r.total >= 75) && <span className="badge badge-gold">HIGH CONFIDENCE</span>}
-              </div>
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {race.race_name} · {race.distance_furlongs}f · {race.going || "Going N/A"}
-              </div>
-            </div>
-            <span style={{ color: "var(--muted)", fontSize: 18, flexShrink: 0 }}>{expanded[race.race_id] ? "▲" : "▼"}</span>
-          </div>
+  var today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  var totalRaces = races.length;
+  var topPicks = races.reduce(function(acc, r) {
+    return acc.concat((r.runners || []).filter(function(run) { return run.total >= 70; }).map(function(run) {
+      return Object.assign({}, run, { course: r.course, off_time: r.off_time, race_type: r.race_type });
+    }));
+  }, []).sort(function(a, b) { return b.total - a.total; });
+  var strongPicks = races.reduce(function(acc, r) {
+    return acc + (r.runners || []).filter(function(run) { return run.total >= 75; }).length;
+  }, 0);
+  var confidence = totalRaces > 0 ? Math.round((strongPicks / Math.max(totalRaces, 1)) * 100) : 0;
+  var planBadgeColor = { free: '#888', pro: '#4d9fff', edge: '#a3e635' };
+  var visibleTopPicks = plan === 'free' ? topPicks.slice(0, 1) : topPicks.slice(topPicksPage * PICKS_PER_PAGE, (topPicksPage + 1) * PICKS_PER_PAGE);
 
-          {expanded[race.race_id] && (
-            <div style={{ marginTop: 14 }}>
-              <div className="divider" style={{ marginTop: 0, marginBottom: 12 }} />
-              {(race.runners || []).map(runner => (
-                <RunnerCard key={runner.runner_id} runner={runner} mode={mode} affUrl={affUrl} />
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
+  return React.createElement('div', { className: 'page' },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '8px' } },
+      React.createElement('div', null,
+        React.createElement('h1', { style: { fontSize: '26px', fontWeight: '700' } }, 'Today\u0027s Races'),
+        React.createElement('p', { style: { color: '#666', fontSize: '13px', marginTop: '2px' } }, today)
+      ),
+      React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+        React.createElement('span', { style: { color: planBadgeColor[plan] || '#888', fontSize: '11px', fontWeight: '700', letterSpacing: '1px', textTransform: 'uppercase', border: '1px solid', borderColor: planBadgeColor[plan] || '#888', borderRadius: '4px', padding: '2px 8px' } }, plan),
+        plan === 'edge' && React.createElement('button', { onClick: loadRaces, style: { background: '#1a3a0a', border: '1px solid #a3e635', color: '#a3e635', borderRadius: '4px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' } }, 'Refresh')
+      )
+    ),
+    React.createElement('div', { className: 'stats-bar' },
+      React.createElement('div', { className: 'stat-box' }, React.createElement('div', { className: 'val' }, totalRaces), React.createElement('div', { className: 'lbl' }, 'Races Today')),
+      React.createElement('div', { className: 'stat-box' }, React.createElement('div', { className: 'val' }, strongPicks), React.createElement('div', { className: 'lbl' }, 'Strong Picks (75+)')),
+      React.createElement('div', { className: 'stat-box' }, React.createElement('div', { className: 'val' }, topPicks.length), React.createElement('div', { className: 'lbl' }, 'Top Picks (70+)')),
+      React.createElement('div', { className: 'stat-box' }, React.createElement('div', { className: 'val' }, confidence + '%'), React.createElement('div', { className: 'lbl' }, 'Confidence'))
+    ),
+    topPicks.length > 0 && React.createElement('div', { style: { marginBottom: '24px' } },
+      React.createElement('h2', { style: { fontSize: '16px', marginBottom: '12px', color: '#a3e635' } }, 'Top Picks'),
+      visibleTopPicks.map(function(runner, i) {
+        var aff = affiliateUrl('bet365');
+        return React.createElement('div', { key: i, className: 'card', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' } },
+          React.createElement('div', null,
+            runner.total >= 75 && React.createElement('div', { style: { fontSize: '10px', color: '#a3e635', fontWeight: '700', marginBottom: '4px' } }, 'HIGH CONFIDENCE'),
+            React.createElement('div', { style: { fontWeight: '600', fontSize: '15px' } }, runner.horse_name),
+            React.createElement('div', { style: { color: '#888', fontSize: '12px', marginTop: '2px' } }, runner.course + ' ' + (runner.off_time || '') + ' - ' + (runner.race_type || ''))
+          ),
+          React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+            React.createElement('span', { style: { color: '#a3e635', fontWeight: '700', fontSize: '16px' } }, getOdds(runner)),
+            aff && React.createElement('a', { href: aff, target: '_blank', rel: 'noopener noreferrer', style: { background: '#1a2a0a', border: '1px solid #a3e635', color: '#a3e635', borderRadius: '4px', padding: '4px 10px', fontSize: '12px' } }, 'Bet365'),
+            React.createElement('span', { style: { background: '#1a1a2e', color: '#888', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' } }, runner.total + '/100')
+          )
+        );
+      }),
+      plan === 'free' && topPicks.length > 1 && React.createElement('div', { className: 'upgrade-box' },
+        React.createElement('h3', null, topPicks.length - 1 + ' more picks available'),
+        React.createElement('p', null, 'Upgrade to Pro to see all top picks.'),
+        React.createElement('a', { href: '/pricing', className: 'btn btn-green' }, 'Upgrade to Pro')
+      ),
+      plan !== 'free' && topPicks.length > PICKS_PER_PAGE && React.createElement('div', { style: { display: 'flex', gap: '8px', marginTop: '12px' } },
+        React.createElement('button', { onClick: function() { setTopPicksPage(function(p) { return Math.max(0, p - 1); }); }, disabled: topPicksPage === 0, style: { background: 'none', border: '1px solid #444', color: '#ccc', borderRadius: '4px', padding: '6px 14px', fontSize: '13px', cursor: 'pointer' } }, 'Prev'),
+        React.createElement('button', { onClick: function() { setTopPicksPage(function(p) { return p + 1; }); }, disabled: (topPicksPage + 1) * PICKS_PER_PAGE >= topPicks.length, style: { background: 'none', border: '1px solid #444', color: '#ccc', borderRadius: '4px', padding: '6px 14px', fontSize: '13px', cursor: 'pointer' } }, 'Next')
+      )
+    ),
+    loading ? React.createElement('p', { style: { color: '#666' } }, 'Loading races...')
+    : races.length === 0 ? React.createElement('p', { style: { color: '#666' } }, 'No races available yet. Check back after 08:00.')
+    : races.map(function(race) {
+      var isOpen = expanded[race.race_id];
+      var runners = race.runners || [];
+      return React.createElement('div', { key: race.race_id, className: 'card', style: { marginBottom: '8px' } },
+        React.createElement('div', { onClick: function() { toggleRace(race.race_id); }, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' } },
+          React.createElement('div', null,
+            React.createElement('span', { style: { fontWeight: '600', fontSize: '15px' } }, race.course),
+            React.createElement('span', { style: { color: '#666', fontSize: '13px', marginLeft: '10px' } }, race.off_time),
+            React.createElement('span', { style: { color: '#555', fontSize: '12px', marginLeft: '8px' } }, race.going || ''),
+            runners.length === 2 && React.createElement('span', { style: { marginLeft: '8px', background: '#1a1a2e', color: '#888', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '3px' } }, 'RF')
+          ),
+          React.createElement('span', { style: { color: '#666', fontSize: '18px' } }, isOpen ? '-' : '+')
+        ),
+        isOpen && React.createElement('div', { style: { marginTop: '12px', borderTop: '1px solid #1e1e35', paddingTop: '12px' } },
+          runners.map(function(runner, ri) {
+            return React.createElement('div', { key: ri, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: ri < runners.length - 1 ? '1px solid #1a1a2e' : 'none', flexWrap: 'wrap', gap: '6px' } },
+              React.createElement('div', null,
+                runner.total >= 75 && React.createElement('span', { style: { fontSize: '10px', color: '#a3e635', fontWeight: '700', marginRight: '6px' } }, 'HIGH CONF'),
+                React.createElement('span', { style: { fontWeight: '600' } }, runner.horse_name),
+                React.createElement('span', { style: { color: '#666', fontSize: '12px', marginLeft: '8px' } }, runner.jockey || ''),
+                React.createElement('div', { style: { color: '#555', fontSize: '11px', marginTop: '2px' } }, 'Form: ' + (runner.form || '-') + ' | Draw: ' + (runner.draw || '-'))
+              ),
+              React.createElement('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' } },
+                React.createElement('span', { style: { color: '#a3e635', fontWeight: '700' } }, getOdds(runner)),
+                (runner.bookmakers || []).slice(0, 4).map(function(bm, bi) {
+                  var url = affiliateUrl(bm.bookmaker);
+                  if (!url) return null;
+                  return React.createElement('a', { key: bi, href: url, target: '_blank', rel: 'noopener noreferrer', style: { background: '#0f0f1a', border: '1px solid #2a2a3e', color: '#ccc', borderRadius: '3px', padding: '2px 7px', fontSize: '11px' } },
+                    bm.bookmaker + ' ' + (showDecimal ? (bm.decimal ? bm.decimal.toFixed(2) : '') : (bm.fractional || ''))
+                  );
+                }),
+                React.createElement('span', { style: { background: '#1a1a2e', color: runner.total >= 75 ? '#a3e635' : runner.total >= 70 ? '#4d9fff' : '#888', borderRadius: '4px', padding: '3px 8px', fontSize: '12px', fontWeight: '600' } }, runner.total + '/100')
+              )
+            );
+          })
+        )
+      );
+    })
   );
 }

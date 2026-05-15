@@ -1,18 +1,21 @@
 import { NextResponse } from 'next/server';
-import supabase from '@/lib/supabase';
+import supabase from '../../../lib/supabase.js';
 
 export async function GET() {
-  const { data: season }     = await supabase.from('persona_season').select('*');
-  const { data: allPicks }   = await supabase.from('persona_picks').select('*').order('race_date', { ascending: false });
   const today = new Date().toISOString().split('T')[0];
-  const { data: todayPicks } = await supabase.from('persona_picks').select('*').eq('race_date', today);
+  const { data: season, error: seasonErr } = await supabase.from('persona_season').select('*');
+  if (seasonErr) return NextResponse.json({ error: seasonErr.message }, { status: 500 });
 
-  const seasonMap = {}, picksMap = { AJ: [], TC: [] }, todayMap = { AJ: [], TC: [] };
-  for (const s of (season || []))     seasonMap[s.persona] = s;
-  for (const p of (allPicks || []))   if (picksMap[p.persona])  picksMap[p.persona].push(p);
-  for (const p of (todayPicks || [])) if (todayMap[p.persona])  todayMap[p.persona].push(p);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
 
-  const res = NextResponse.json({ season: seasonMap, picks: picksMap, today: todayMap });
-  res.headers.set('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=300');
-  return res;
+  const { data: picks, error: picksErr } = await supabase.from('persona_picks').select('*')
+    .lt('race_date', today)
+    .gte('race_date', fromDate)
+    .order('race_date', { ascending: false })
+    .order('is_best_pick', { ascending: false });
+  if (picksErr) return NextResponse.json({ error: picksErr.message }, { status: 500 });
+
+  return NextResponse.json({ season: season || [], picks: picks || [] });
 }

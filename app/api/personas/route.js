@@ -1,45 +1,40 @@
-﻿import { NextResponse } from 'next/server';
-import supabase from '@/lib/supabase';
-import { PERSONAS, selectPicks } from '@/lib/personas';
-import Anthropic from '@anthropic-ai/sdk';
+import { NextResponse } from 'next/server';
+import supabase from '../../../lib/supabase.js';
+import { PERSONAS, selectPicks, generateTipText } from '../../../lib/personas.js';
 
-const ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-async function genTip(runner, persona) {
-  try {
-    const msg = await ai.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 80,
-      messages: [{
-        role: 'user',
-        content: 'You are ' + persona.name + ', a horse racing tipster. Write ONE punchy sentence (max 18 words) explaining why ' + runner.horse_name + ' is your pick at ' + runner.course + ' today. Mention form or trainer if you can. Sound confident.'
-      }]
-    });
-    return msg.content[0]?.text?.trim() || '';
-  } catch (e) { return ''; }
+function checkSecret(request) {
+  const auth = request.headers.get('authorization') || '';
+  return auth === 'Bearer ' + process.env.CRON_SECRET;
 }
 
-export async function GET(req) {
-  const secret = req.headers.get('authorization')?.replace('Bearer ', '');
-  if (secret !== process.env.CRON_SECRET) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(request) {
+  if (!checkSecret(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const today = new Date().toISOString().split('T')[0];
-  const { data: runners } = await supabase.from('runners').select('*, scores(total)').eq('race_date', today);
-  const enriched = (runners || []).map(r => Object.assign({}, r, { total: r.scores?.total || 0 }));
-  let pickCount = 0;
-  for (const id of Object.keys(PERSONAS)) {
-    const persona = PERSONAS[id];
-    const picks = selectPicks(enriched, id);
-    for (const pick of picks) {
-      const tipText = await genTip(pick, persona);
-      const odds = pick.odds_raw?.odds?.[0]?.fractional || 'N/A';
-      await supabase.from('persona_picks').upsert({
-        pick_id: id + '_' + pick.race_id + '_' + pick.runner_id + '_' + today,
-        persona: id, horse_name: pick.horse_name, race_id: pick.race_id,
-        course: pick.course, race_type: pick.race_type, race_date: today,
-        score: pick.total, score_gap: pick.score_gap, is_best_pick: true, tip_text: tipText, odds,
-      }, { onConflict: 'pick_id' });
-      pickCount++;
-    }
+  const results = {};
+  const errors = [];
+
+  for (const personaId in PERSONAS) {
+    const persona = PERSONAS[personaId];
+    try {
+      const picks = await selectPicks(today, personaId);
+      results[personaId] = { picks: picks.length };
+      if (picks.length === 0) continue;
+      for (const pick of picks) {
+        let tipText = '';
+        try { tipText = await generateTipText(pick, persona); }
+        catch (tipErr) { errors.push('Tip text ' + personaId + ': ' + tipErr.message); }
+        const pickId = personaId + '_' + pick.race_id + '_' + pick.runner_id + '_' + today;
+        const { error: upsertErr } = await supabase.from('persona_picks').upsert({
+          pick_id: pickId, persona: personaId, horse_name: pick.horse_name,
+          race_id: pick.race_id, course: pick.course, race_type: pick.race_type,
+          race_date: today, score: pick.score, score_gap: pick.score_gap,
+          is_best_pick: pick.is_best_pick, tip_text: tipText, odds: pick.odds,
+        }, { onConflict: 'pick_id' });
+        if (upsertErr) errors.push('Pick upsert ' + pickId + ': ' + upsertErr.message);
+      }
+    } catch (err) { errors.push('Persona ' + personaId + ': ' + err.message); }
   }
-  return NextResponse.json({ ok: true, picks: pickCount });
+
+  return NextResponse.json({ success: errors.length === 0, date: today, results: results, errors: errors, timestamp: new Date().toISOString() });
 }

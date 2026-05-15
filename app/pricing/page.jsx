@@ -1,104 +1,33 @@
-"use client";
-import { useState } from "react";
+'use client';
 
-const plans = [
-  {
-    id: "free", label: "Free", price: "£0", sub: "Forever", colour: "var(--muted)",
-    features: ["Top tip of the day", "Bookmaker links", "Results ticker"],
-    locked: ["Full race cards", "Both tipster picks", "Results history"],
-  },
-  {
-    id: "daypass", label: "Day Pass", price: "£1.99", sub: "until midnight", colour: "var(--gold)",
-    features: ["Full Edge access today", "All races and runners", "Both tipster picks", "Full results history", "Expires at midnight"],
-    locked: [],
-  },
-  {
-    id: "pro", label: "Pro", price: "£9.99", sub: "/month", colour: "var(--blue)",
-    features: ["All races, top 2 runners", "Both tipster picks daily", "30-day results history", "Odds toggle", "Monthly P&L archive"],
-    locked: ["Full history"],
-  },
-  {
-    id: "edge", label: "Edge", price: "£24.99", sub: "/month", colour: "var(--green)",
-    features: ["Everything in Pro", "Full results history", "Live refresh button", "Time and track filter"],
-    locked: [],
-  },
-];
+import React from 'react';
+import Link from 'next/link';
 
 export default function PricingPage() {
-  const [loading, setLoading] = useState("");
+  var plans = [
+    { name: 'FREE', price: '0', color: '#888', features: ['1 top pick per day', 'Bookmaker links shown', 'Results ticker visible'], cta: 'Get Started', href: '/join', highlight: false },
+    { name: 'PRO', price: '9.99', color: '#4d9fff', features: ['All races grouped', 'Top 2 runners per race', 'Paginated top picks (70+)', 'Last 30 days history', 'Tipster picks visible'], cta: 'Go Pro', href: '/join', highlight: true },
+    { name: 'EDGE', price: '24.99', color: '#a3e635', features: ['Everything in Pro', 'Live refresh button', 'Full results history', 'All tipster picks + history', 'Admin panel'], cta: 'Get Edge', href: '/join', highlight: false },
+  ];
 
-  const subscribe = async planId => {
-    if (planId === "free") return;
-    setLoading(planId);
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planId }),
-      });
-      const { url } = await res.json();
-      if (url) window.location.href = url;
-    } catch (e) {}
-    setLoading("");
-  };
-
-  const btnClass = id => {
-    if (id === "edge")    return "btn btn-green";
-    if (id === "pro")     return "btn btn-blue";
-    if (id === "daypass") return "btn btn-gold";
-    return "btn btn-ghost";
-  };
-
-  return (
-    <div style={{ paddingTop: 16 }}>
-      <h1 className="section-title">Plans</h1>
-      <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
-        All plans include Gamble Aware resources. Tips are for entertainment only. 18+ only.
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {plans.map(p => (
-          <div key={p.id} className="card" style={{ borderTop: "3px solid " + p.colour }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-              <div>
-                <div style={{ fontFamily: "Bebas Neue, sans-serif", fontSize: 22, letterSpacing: 1, color: p.colour }}>{p.label}</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                  <span style={{ fontSize: 28, fontWeight: 800 }}>{p.price}</span>
-                  <span style={{ fontSize: 13, color: "var(--muted)" }}>{p.sub}</span>
-                </div>
-              </div>
-              <button onClick={() => subscribe(p.id)}
-                className={btnClass(p.id)}
-                disabled={loading === p.id || p.id === "free"}
-                style={{ opacity: p.id === "free" ? 0.5 : 1 }}>
-                {loading === p.id ? "Redirecting..." : p.id === "free" ? "Current Plan" : "Subscribe"}
-              </button>
-            </div>
-            {p.features.map(f => (
-              <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                <span style={{ color: "var(--green)", fontWeight: 700 }}>✓</span>
-                <span style={{ fontSize: 13 }}>{f}</span>
-              </div>
-            ))}
-            {p.locked.map(f => (
-              <div key={f} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6, opacity: 0.4 }}>
-                <span style={{ color: "var(--muted)" }}>✗</span>
-                <span style={{ fontSize: 13, color: "var(--muted)" }}>{f}</span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 24, padding: 16, background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)", borderRadius: "var(--radius)" }}>
-        <div style={{ fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.5px", color: "#ef4444", marginBottom: 6 }}>
-          Responsible Gambling
-        </div>
-        <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>
-          Tips for entertainment only. Never bet more than you can afford to lose.
-          Help: <a href="https://www.begambleaware.org" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>BeGambleAware.org</a>
-          {" · "}<a href="https://www.gamstop.co.uk" target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)" }}>GamStop</a>
-          {" · "}0808 802 0133
-        </div>
-      </div>
-    </div>
+  return React.createElement('div', { className: 'page' },
+    React.createElement('h1', { style: { textAlign: 'center', marginBottom: '8px', fontSize: '32px' } }, 'Plans'),
+    React.createElement('p', { style: { textAlign: 'center', color: '#888', marginBottom: '40px' } }, 'Cancel any time.'),
+    React.createElement('div', { style: { display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center' } },
+      plans.map(function(plan) {
+        return React.createElement('div', { key: plan.name, style: { flex: '1', minWidth: '240px', maxWidth: '300px', background: '#12121f', border: '1px solid ' + (plan.highlight ? plan.color : '#1e1e35'), borderRadius: '10px', padding: '28px 24px' } },
+          React.createElement('div', { style: { color: plan.color, fontWeight: '700', fontSize: '13px', letterSpacing: '1px', marginBottom: '8px' } }, plan.name),
+          React.createElement('div', { style: { fontSize: '36px', fontWeight: '800', marginBottom: '20px' } }, plan.price === '0' ? 'Free' : String.fromCharCode(163) + plan.price + '/mo'),
+          React.createElement('ul', { style: { listStyle: 'none', marginBottom: '24px' } },
+            plan.features.map(function(f, i) {
+              return React.createElement('li', { key: i, style: { color: '#ccc', fontSize: '14px', marginBottom: '10px', paddingLeft: '18px', position: 'relative' } },
+                React.createElement('span', { style: { position: 'absolute', left: '0', color: plan.color } }, String.fromCharCode(10003)), f
+              );
+            })
+          ),
+          React.createElement(Link, { href: plan.href, style: { display: 'block', textAlign: 'center', padding: '11px', background: plan.highlight ? plan.color : 'none', border: plan.highlight ? 'none' : '1px solid #444', color: plan.highlight ? '#0a0a14' : '#ccc', borderRadius: '6px', fontWeight: '600', fontSize: '14px' } }, plan.cta)
+        );
+      })
+    )
   );
 }

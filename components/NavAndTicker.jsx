@@ -1,123 +1,92 @@
-"use client";
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { getSupabaseClient } from "@/lib/supabaseClient";
+'use client';
 
-const ADMIN = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { OddsToggleButton } from './OddsToggle.jsx';
 
 export default function NavAndTicker() {
   const [isMobile, setIsMobile] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [tickerItems, setTickerItems] = useState([]);
-  const [userEmail, setUserEmail] = useState("");
-  const pathname = usePathname();
+  const [ticker, setTicker] = useState([]);
 
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth <= 600);
+  useEffect(function() {
+    function check() { setIsMobile(window.innerWidth <= 768); }
     check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+    window.addEventListener('resize', check);
+    return function() { window.removeEventListener('resize', check); };
   }, []);
 
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
-
-  useEffect(() => {
-    getSupabaseClient().auth.getUser().then(({ data }) => {
-      setUserEmail(data?.user?.email || "");
-    });
+  useEffect(function() {
+    fetch('/api/stats')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var picks = (data.picks || []).filter(function(p) { return p.position !== null && !p.is_nr; });
+        setTicker(picks.slice(0, 20));
+      })
+      .catch(function() {});
   }, []);
 
-  useEffect(() => {
-    const load = () =>
-      fetch("/api/ticker")
-        .then(r => r.json())
-        .then(d => setTickerItems(d.items || []))
-        .catch(() => {});
-    load();
-    const iv = setInterval(load, 3600000);
-    return () => clearInterval(iv);
-  }, []);
-
-  const links = [
-    { href: "/dashboard", label: "Today" },
-    { href: "/tipsters",  label: "Tipsters" },
-    { href: "/results",   label: "Results" },
-    { href: "/pricing",   label: "Pricing" },
+  var navLinks = [
+    { href: '/dashboard', label: 'Today' },
+    { href: '/tomorrow', label: 'Tomorrow' },
+    { href: '/tipsters', label: 'Tipsters' },
+    { href: '/results', label: 'Results' },
+    { href: '/pricing', label: 'Pricing' },
+    { href: '/account', label: 'Account' },
   ];
 
-  const isActive = href => pathname === href || pathname.startsWith(href + "/");
-  const isAdmin = userEmail === ADMIN;
+  var navStyle = { background: '#0f0f1a', borderBottom: '1px solid #222', position: 'sticky', top: '0', zIndex: '100' };
+  var innerStyle = { maxWidth: '960px', margin: '0 auto', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' };
+  var logoStyle = { color: '#a3e635', fontWeight: '700', fontSize: '20px', textDecoration: 'none', letterSpacing: '1px' };
+  var linkStyle = { color: '#ccc', textDecoration: 'none', fontSize: '14px', padding: '0 10px' };
+  var hamburgerStyle = { background: 'none', border: 'none', color: '#ccc', fontSize: '22px', cursor: 'pointer', padding: '4px 8px' };
+  var mobileMenuStyle = { background: '#0f0f1a', borderBottom: '1px solid #222', padding: '12px 16px', display: menuOpen ? 'flex' : 'none', flexDirection: 'column', gap: '12px' };
+  var tickerStyle = { background: '#0a0a14', borderBottom: '1px solid #1a1a2e', padding: '6px 0', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '12px', color: '#888' };
+  var tickerInnerStyle = { display: 'inline-block', paddingLeft: '100%', animation: ticker.length > 0 ? 'ticker 40s linear infinite' : 'none' };
 
-  return (
-    <>
-      <nav className="nav">
-        <Link href="/" className="nav-brand">Race<span>Edge</span></Link>
+  function getResultColor(p) {
+    if (p.position === 1) return '#a3e635';
+    if (p.position <= 3) return '#4d9fff';
+    return '#888';
+  }
 
-        {!isMobile && (
-          <div className="nav-links">
-            {links.map(l => (
-              <Link key={l.href} href={l.href} className={isActive(l.href) ? "active" : ""}>
-                {l.label}
-              </Link>
-            ))}
-            {isAdmin && (
-              <Link href="/admin" className={isActive("/admin") ? "active" : ""} style={{ color: "var(--gold)" }}>
-                Admin
-              </Link>
-            )}
-          </div>
-        )}
+  function getResultLabel(p) {
+    if (p.position === 1) return 'WON';
+    if (p.position === 2) return '2nd';
+    if (p.position === 3) return '3rd';
+    return p.position + 'th';
+  }
 
-        <div className="nav-right">
-          {!isMobile && (
-            <Link href="/account" className="btn btn-ghost" style={{ padding: "5px 14px", fontSize: 13 }}>
-              Account
-            </Link>
-          )}
-          {isMobile && (
-            <button className="hamburger" onClick={() => setMenuOpen(o => !o)} aria-label="Menu">
-              <span style={{ transform: menuOpen ? "rotate(45deg) translate(5px, 5px)" : "none" }} />
-              <span style={{ opacity: menuOpen ? 0 : 1 }} />
-              <span style={{ transform: menuOpen ? "rotate(-45deg) translate(5px, -5px)" : "none" }} />
-            </button>
-          )}
-        </div>
-      </nav>
+  var tickerItems = ticker.map(function(p, i) {
+    return React.createElement('span', { key: i, style: { marginRight: '40px' } },
+      React.createElement('span', { style: { color: p.persona === 'AJ' ? '#a3e635' : '#4d9fff', marginRight: '6px' } }, p.persona === 'AJ' ? 'Robbie' : 'Pat'),
+      React.createElement('span', { style: { color: '#ccc', marginRight: '6px' } }, p.horse_name),
+      React.createElement('span', { style: { color: '#666', marginRight: '6px' } }, p.course),
+      React.createElement('span', { style: { color: getResultColor(p), fontWeight: '600' } }, getResultLabel(p))
+    );
+  });
 
-      {isMobile && menuOpen && (
-        <div className="mobile-menu">
-          {links.map(l => (
-            <Link key={l.href} href={l.href} style={{ color: isActive(l.href) ? "var(--green)" : "var(--text)" }}>
-              {l.label}
-            </Link>
-          ))}
-          {isAdmin && <Link href="/admin" style={{ color: "var(--gold)" }}>Admin</Link>}
-          <Link href="/account">Account</Link>
-          <div style={{ borderTop: "1px solid var(--border)", marginTop: 8, paddingTop: 10, paddingLeft: 14, fontSize: 12, color: "var(--muted)" }}>
-            18+ · <a href="https://www.begambleaware.org" target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)" }}>BeGambleAware.org</a>
-          </div>
-        </div>
-      )}
-
-      <div className="ticker-wrap">
-        {tickerItems.length > 0 ? (
-          <div className="ticker-track" title="Hover to pause">
-            {[...tickerItems, ...tickerItems].map((item, i) => (
-              <span key={i} className="ticker-item">
-                <span className="ticker-label">{item.persona}</span>
-                <span style={{ color: "var(--text)", fontWeight: 600 }}>{item.horse}</span>
-                <span style={{ color: "var(--muted)", fontSize: 11 }}>{item.course}</span>
-                <span className={item.cls}>{item.result}</span>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div className="ticker-empty">
-            Results ticker · Tips updated daily from 07:00 · Settle from 15:00
-          </div>
-        )}
-      </div>
-    </>
+  return React.createElement('div', null,
+    React.createElement('nav', { style: navStyle },
+      React.createElement('div', { style: innerStyle },
+        React.createElement(Link, { href: '/', style: logoStyle }, 'RACEEDGE'),
+        isMobile
+          ? React.createElement('button', { style: hamburgerStyle, onClick: function() { setMenuOpen(function(o) { return !o; }); } }, menuOpen ? 'x' : '=')
+          : React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+              navLinks.map(function(l) { return React.createElement(Link, { key: l.href, href: l.href, style: linkStyle }, l.label); }),
+              React.createElement('div', { style: { marginLeft: '12px' } }, React.createElement(OddsToggleButton))
+            )
+      ),
+      isMobile && React.createElement('div', { style: mobileMenuStyle },
+        navLinks.map(function(l) { return React.createElement(Link, { key: l.href, href: l.href, style: Object.assign({}, linkStyle, { padding: '4px 0' }), onClick: function() { setMenuOpen(false); } }, l.label); }),
+        React.createElement(OddsToggleButton)
+      )
+    ),
+    React.createElement('div', { style: tickerStyle },
+      ticker.length > 0
+        ? React.createElement('div', { style: tickerInnerStyle }, tickerItems)
+        : React.createElement('div', { style: { padding: '0 16px', color: '#555' } }, 'Results will appear here as races settle today')
+    ),
+    React.createElement('style', null, '@keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }')
   );
 }
